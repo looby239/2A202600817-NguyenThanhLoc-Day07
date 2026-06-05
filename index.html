@@ -1,0 +1,1188 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RAG & Chunking Strategy Laboratory</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap">
+  <style>
+    :root {
+      --bg-primary: #080810;
+      --bg-secondary: rgba(18, 18, 35, 0.7);
+      --border-color: rgba(255, 255, 255, 0.08);
+      --accent-color: #8b5cf6; /* violet-500 */
+      --accent-hover: #7c3aed; /* violet-600 */
+      --accent-glow: rgba(139, 92, 246, 0.35);
+      --text-primary: #f3f4f6;
+      --text-secondary: #9ca3af;
+      --text-muted: #6b7280;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --card-bg: rgba(25, 25, 50, 0.45);
+      --card-hover-border: rgba(139, 92, 246, 0.3);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    body {
+      font-family: 'Outfit', sans-serif;
+      background-color: var(--bg-primary);
+      background-image: 
+        radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 45%),
+        radial-gradient(at 100% 100%, rgba(168, 85, 247, 0.15) 0px, transparent 45%);
+      color: var(--text-primary);
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      backdrop-filter: blur(12px);
+      background-color: rgba(8, 8, 16, 0.6);
+      border-bottom: 1px solid var(--border-color);
+      padding: 1.25rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .logo-container {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .logo-icon {
+      width: 2rem;
+      height: 2rem;
+      background: linear-gradient(135deg, #a855f7, #6366f1);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      color: #fff;
+      font-size: 1.1rem;
+      box-shadow: 0 0 15px rgba(99, 102, 241, 0.4);
+    }
+
+    h1 {
+      font-size: 1.35rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      background: linear-gradient(to right, #f3f4f6, #9ca3af);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      background-color: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-color);
+      padding: 0.4rem 0.85rem;
+      border-radius: 30px;
+      font-size: 0.85rem;
+      font-weight: 500;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: var(--danger);
+      box-shadow: 0 0 8px var(--danger);
+      transition: all 0.3s ease;
+    }
+
+    .status-dot.active {
+      background-color: var(--success);
+      box-shadow: 0 0 8px var(--success);
+    }
+
+    .app-container {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* Sidebar controls */
+    .sidebar {
+      width: 22rem;
+      border-right: 1px solid var(--border-color);
+      padding: 1.75rem;
+      display: flex;
+      flex-direction: column;
+      background-color: rgba(10, 10, 20, 0.3);
+      overflow: hidden;
+      height: 100%;
+    }
+
+    .sidebar-scrollable {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+      padding-right: 0.25rem;
+    }
+
+    .sidebar-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      padding-top: 1.25rem;
+      border-top: 1px solid var(--border-color);
+      margin-top: 1rem;
+    }
+
+    .sidebar-section {
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+    }
+
+    .section-title {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-secondary);
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+    }
+
+    label {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+
+    select, input[type="number"], input[type="text"] {
+      background-color: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 0.65rem 0.85rem;
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    select option {
+      background-color: #121223;
+      color: var(--text-primary);
+    }
+
+    select:focus, input:focus {
+      border-color: var(--accent-color);
+      box-shadow: 0 0 8px var(--accent-glow);
+    }
+
+    /* Custom Switch / Radios */
+    .strategy-options {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .strategy-option {
+      background-color: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 0.65rem 0.85rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      cursor: pointer;
+      transition: background-color 0.2s, border-color 0.2s;
+    }
+
+    .strategy-option:hover {
+      background-color: rgba(255, 255, 255, 0.04);
+      border-color: rgba(139, 92, 246, 0.2);
+    }
+
+    .strategy-option.active {
+      background-color: rgba(139, 92, 246, 0.06);
+      border-color: var(--accent-color);
+    }
+
+    .strategy-option input[type="radio"] {
+      accent-color: var(--accent-color);
+    }
+
+    .strategy-name {
+      font-size: 0.9rem;
+      font-weight: 500;
+    }
+
+    .btn {
+      background: linear-gradient(135deg, var(--accent-color), #6366f1);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 0.75rem 1.25rem;
+      font-weight: 600;
+      font-size: 0.95rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      transition: transform 0.15s, box-shadow 0.2s;
+      box-shadow: 0 4px 15px rgba(139, 92, 246, 0.25);
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(139, 92, 246, 0.4);
+    }
+
+    .btn:active {
+      transform: translateY(1px);
+    }
+
+    .btn:disabled {
+      background: var(--text-muted);
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    /* Main Area layout */
+    .main-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background-color: rgba(5, 5, 10, 0.1);
+      overflow: hidden;
+    }
+
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border-color);
+      background-color: rgba(10, 10, 20, 0.2);
+      padding: 0 2rem;
+    }
+
+    .tab {
+      padding: 1.15rem 1.5rem;
+      color: var(--text-secondary);
+      font-weight: 500;
+      font-size: 0.95rem;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: color 0.2s, border-bottom-color 0.2s;
+    }
+
+    .tab:hover {
+      color: var(--text-primary);
+    }
+
+    .tab.active {
+      color: var(--accent-color);
+      border-bottom-color: var(--accent-color);
+      font-weight: 600;
+    }
+
+    .tab-content {
+      flex: 1;
+      padding: 2rem;
+      overflow-y: auto;
+      display: none;
+    }
+
+    .tab-content.active {
+      display: flex;
+      flex-direction: column;
+      gap: 1.75rem;
+    }
+
+    /* Chunk Visualizer Tab */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+      gap: 1.25rem;
+    }
+
+    .stat-card {
+      background-color: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1.15rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    .stat-label {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .stat-value {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .chunks-container {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .chunk-card {
+      background-color: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 1.25rem;
+      position: relative;
+      overflow: hidden;
+      transition: border-color 0.25s, transform 0.2s;
+    }
+
+    .chunk-card:hover {
+      border-color: var(--card-hover-border);
+      transform: scale(1.002);
+    }
+
+    .chunk-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.75rem;
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+    }
+
+    .chunk-badge {
+      background-color: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-color);
+      padding: 0.25rem 0.6rem;
+      border-radius: 4px;
+      font-weight: 500;
+    }
+
+    .chunk-badge.accent {
+      background-color: rgba(139, 92, 246, 0.1);
+      border-color: rgba(139, 92, 246, 0.3);
+      color: #c084fc; /* purple-400 */
+    }
+
+    .chunk-body {
+      font-size: 0.9rem;
+      line-height: 1.55;
+      white-space: pre-wrap;
+      color: var(--text-primary);
+    }
+
+    /* RAG Tab */
+    .rag-layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+      height: 100%;
+    }
+
+    @media (max-width: 1024px) {
+      .rag-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .panel {
+      border: 1px solid var(--border-color);
+      background-color: rgba(15, 15, 30, 0.35);
+      border-radius: 12px;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+      height: 100%;
+    }
+
+    .panel-header {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 0.75rem;
+    }
+
+    .query-box {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .search-input-wrapper {
+      display: flex;
+      gap: 0.75rem;
+    }
+
+    .search-input-wrapper input {
+      flex: 1;
+    }
+
+    .agent-answer-box {
+      background-color: rgba(139, 92, 246, 0.03);
+      border: 1px solid rgba(139, 92, 246, 0.15);
+      border-radius: 8px;
+      padding: 1.25rem;
+      font-size: 0.95rem;
+      line-height: 1.6;
+      display: none;
+    }
+
+    .agent-answer-box.active {
+      display: block;
+      animation: fadeIn 0.4s ease;
+    }
+
+    .matched-chunk {
+      background-color: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .matched-chunk-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.8rem;
+    }
+
+    .score-bar-bg {
+      width: 100%;
+      height: 6px;
+      background-color: rgba(255, 255, 255, 0.05);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-top: 0.25rem;
+    }
+
+    .score-bar-fill {
+      height: 100%;
+      background: linear-gradient(to right, #6366f1, #a855f7);
+      border-radius: 3px;
+      transition: width 0.5s ease-out;
+    }
+
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 4rem 2rem;
+      color: var(--text-muted);
+      gap: 1rem;
+    }
+
+    .empty-icon {
+      font-size: 2.5rem;
+      opacity: 0.4;
+    }
+
+    /* Utility */
+    .loading-spinner {
+      border: 3px solid rgba(255, 255, 255, 0.1);
+      border-top: 3px solid #fff;
+      border-radius: 50%;
+      width: 1.15rem;
+      height: 1.15rem;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .toast-container {
+      position: fixed;
+      bottom: 2rem;
+      right: 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      z-index: 1000;
+    }
+
+    .toast {
+      background-color: #1e1e38;
+      border: 1px solid var(--border-color);
+      border-left: 4px solid var(--accent-color);
+      padding: 0.85rem 1.5rem;
+      border-radius: 6px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+      font-size: 0.9rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      animation: slideIn 0.3s ease-out;
+    }
+
+    .toast.success { border-left-color: var(--success); }
+    .toast.warning { border-left-color: var(--warning); }
+    .toast.danger { border-left-color: var(--danger); }
+
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    /* History Dropdown Styles */
+    .history-item {
+      padding: 0.65rem 0.85rem;
+      font-size: 0.9rem;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: var(--text-primary);
+      transition: background-color 0.2s;
+    }
+    .history-item:hover {
+      background-color: rgba(139, 92, 246, 0.1);
+    }
+    .history-item-text {
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-right: 0.75rem;
+    }
+    .history-item-delete {
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 1.1rem;
+      padding: 0 0.3rem;
+      border-radius: 4px;
+      transition: color 0.2s, background-color 0.2s;
+      line-height: 1;
+    }
+    .history-item-delete:hover {
+      color: var(--danger);
+      background-color: rgba(239, 68, 68, 0.15);
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="logo-container">
+      <div class="logo-icon">C</div>
+      <h1>RAG & Chunking Laboratory</h1>
+    </div>
+    
+    <div style="display: flex; align-items: center; gap: 1rem;">
+      <div class="status-badge">
+        <span class="status-label">Embedding Engine:</span>
+        <span id="embedding-backend-name" style="font-weight:600; color: #a855f7;">Chưa kết nối</span>
+      </div>
+      <div class="status-badge">
+        <div class="status-dot" id="store-status-dot"></div>
+        <span id="store-status-text">Store chưa nạp</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="app-container">
+    
+    <!-- Controls Sidebar -->
+    <div class="sidebar">
+      <div class="sidebar-scrollable">
+        <div class="sidebar-section">
+          <span class="section-title">1. Chọn tài liệu</span>
+          <div class="form-group">
+            <label for="doc-select">File văn bản:</label>
+            <select id="doc-select">
+              <option value="">Đang tải danh sách...</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="sidebar-section">
+          <span class="section-title">2. Chiến lược Chunking</span>
+          <div class="strategy-options">
+            <div class="strategy-option active" data-strategy="recursive">
+              <input type="radio" id="strategy-recursive" name="chunk-strategy" value="recursive" checked>
+              <div class="strategy-name">Recursive Splitter</div>
+            </div>
+            <div class="strategy-option" data-strategy="by_sentences">
+              <input type="radio" id="strategy-sentences" name="chunk-strategy" value="by_sentences">
+              <div class="strategy-name">Sentence-based</div>
+            </div>
+            <div class="strategy-option" data-strategy="fixed_size">
+              <input type="radio" id="strategy-fixed" name="chunk-strategy" value="fixed_size">
+              <div class="strategy-name">Fixed-Size Chunker</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="sidebar-section">
+          <span class="section-title">3. Tham số cấu hình</span>
+          
+          <div class="form-group" id="param-size-group">
+            <label for="param-size">Chunk Size (ký tự):</label>
+            <input type="number" id="param-size" value="500" min="50" max="2000" step="50">
+          </div>
+
+          <div class="form-group" id="param-sentences-group" style="display: none;">
+            <label for="param-sentences">Số câu tối đa / chunk:</label>
+            <input type="number" id="param-sentences" value="3" min="1" max="20" step="1">
+          </div>
+        </div>
+      </div>
+
+      <div class="sidebar-actions">
+        <button class="btn" id="btn-preview" style="background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); box-shadow: none;">
+          Xem trước chunks
+        </button>
+        <button class="btn" id="btn-index">
+          Nạp & Index Vector Store
+        </button>
+      </div>
+    </div>
+
+    <!-- Main Content Area -->
+    <div class="main-content">
+      
+      <div class="tabs">
+        <div class="tab active" data-tab="visualizer">Trực quan hóa Chunking</div>
+        <div class="tab" data-tab="rag-testing">Kiểm thử RAG Agent</div>
+      </div>
+
+      <!-- Tab 1: Chunk Visualizer -->
+      <div class="tab-content active" id="tab-visualizer">
+        <div class="stats-row">
+          <div class="stat-card">
+            <span class="stat-label">Tổng số chunks</span>
+            <span class="stat-value" id="stat-total-chunks">-</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Độ dài trung bình</span>
+            <span class="stat-value" id="stat-avg-len">-</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Tên tài liệu</span>
+            <span class="stat-value" id="stat-doc-name" style="font-size: 1.15rem; word-break: break-all;">-</span>
+          </div>
+        </div>
+
+        <div class="chunks-container" id="preview-chunks-list">
+          <div class="empty-state">
+            <div class="empty-icon">✂️</div>
+            <p>Chọn tài liệu và click "Xem trước chunks" để trực quan hóa cách phân đoạn văn bản.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab 2: RAG Testing -->
+      <div class="tab-content" id="tab-rag-testing">
+        <div class="rag-layout">
+          
+          <!-- Query & Answer Panel -->
+          <div class="panel">
+            <div class="panel-header">Truy vấn & RAG Answer</div>
+            
+            <div class="query-box">
+              <label for="rag-query">Câu hỏi kiểm thử (Query):</label>
+              <div class="search-input-wrapper">
+                <div style="flex: 1; position: relative;" id="query-input-container">
+                  <input type="text" id="rag-query" placeholder="Ví dụ: Thời điểm cut off time là gì?" disabled autocomplete="off" style="width: 100%;">
+                  
+                  <!-- History Dropdown -->
+                  <div id="history-dropdown" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background-color: #121223; border: 1px solid var(--border-color); border-radius: 8px; margin-top: 0.25rem; z-index: 10; box-shadow: 0 10px 25px rgba(0,0,0,0.5); overflow: hidden;">
+                    <div style="padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; color: var(--text-secondary);">
+                      <span>LỊCH SỬ TRUY VẤN</span>
+                      <span id="btn-clear-history" style="cursor: pointer; color: #ef4444; font-weight: 500;">Xóa hết</span>
+                    </div>
+                    <div id="history-items-list" style="max-height: 200px; overflow-y: auto;">
+                      <!-- Items dynamically generated -->
+                    </div>
+                  </div>
+                </div>
+                <button class="btn" id="btn-search" disabled>Tìm kiếm</button>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="filter-chapter">Bộ lọc Chương (Metadata Filter):</label>
+              <select id="filter-chapter" disabled>
+                <option value="">Không dùng bộ lọc</option>
+              </select>
+            </div>
+
+            <div style="flex: 1; display: flex; flex-direction: column; gap: 0.5rem; justify-content: flex-start;">
+              <label>Câu trả lời từ Agent (Grounding Output):</label>
+              <div class="agent-answer-box" id="agent-answer-text"></div>
+              <div class="empty-state" id="agent-empty-state" style="padding: 2rem; border: 1px dashed var(--border-color); border-radius: 8px;">
+                Chưa có câu hỏi hoặc chưa chạy truy vấn.
+              </div>
+            </div>
+          </div>
+
+          <!-- Retrieved Chunks Panel -->
+          <div class="panel">
+            <div class="panel-header">Đoạn văn truy xuất được (Retrieved Chunks)</div>
+            <div style="display: flex; flex-direction: column; gap: 1rem; overflow-y: auto; flex: 1;" id="retrieved-chunks-list">
+              <div class="empty-state">
+                <div class="empty-icon">📂</div>
+                <p>Nạp dữ liệu vào Vector Store và gửi truy vấn để kiểm tra kết quả retrieve.</p>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <div class="toast-container" id="toast-area"></div>
+
+  <script>
+    // Global States
+    let activeStrategy = 'recursive';
+    let documentIndexed = false;
+
+    // Toast manager
+    function showToast(message, type = 'success') {
+      const area = document.getElementById('toast-area');
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+      toast.innerHTML = `
+        <span style="font-weight: 500;">${message}</span>
+      `;
+      area.appendChild(toast);
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(10px)';
+        toast.style.transition = 'all 0.3s ease';
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    }
+
+    // Switch Tabs
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        
+        tab.classList.add('active');
+        document.getElementById(`tab-${tab.dataset.tab}`).classList.add('active');
+      });
+    });
+
+    // Switch Strategy option card
+    document.querySelectorAll('.strategy-option').forEach(option => {
+      option.addEventListener('click', () => {
+        document.querySelectorAll('.strategy-option').forEach(o => o.classList.remove('active'));
+        option.classList.add('active');
+        const strategy = option.dataset.strategy;
+        activeStrategy = strategy;
+        
+        // Check radio
+        document.getElementById(`strategy-${strategy}`).checked = true;
+
+        // Toggle inputs depending on strategy
+        if (strategy === 'by_sentences') {
+          document.getElementById('param-sentences-group').style.display = 'flex';
+          document.getElementById('param-size-group').style.display = 'none';
+        } else {
+          document.getElementById('param-sentences-group').style.display = 'none';
+          document.getElementById('param-size-group').style.display = 'flex';
+        }
+      });
+    });
+
+    // Load available documents from backend
+    async function loadDocuments() {
+      try {
+        const res = await fetch('/api/documents');
+        const docs = await res.json();
+        const select = document.getElementById('doc-select');
+        select.innerHTML = '';
+        docs.forEach(doc => {
+          const opt = document.createElement('option');
+          opt.value = doc.path;
+          opt.textContent = doc.name;
+          select.appendChild(opt);
+        });
+      } catch (err) {
+        showToast('Không thể tải danh sách tài liệu từ server', 'danger');
+      }
+    }
+
+    // Load static app config/status
+    async function checkSystemStatus() {
+      try {
+        const res = await fetch('/api/status');
+        const status = await res.json();
+        
+        document.getElementById('embedding-backend-name').textContent = status.embedding_backend;
+        
+        if (status.is_indexed) {
+          documentIndexed = true;
+          document.getElementById('store-status-dot').classList.add('active');
+          document.getElementById('store-status-text').textContent = 'Store đã nạp';
+          
+          // Enable RAG
+          document.getElementById('rag-query').disabled = false;
+          document.getElementById('btn-search').disabled = false;
+          document.getElementById('filter-chapter').disabled = false;
+          
+          // Load chapters filter list
+          const chSelect = document.getElementById('filter-chapter');
+          chSelect.innerHTML = '<option value="">Không dùng bộ lọc</option>';
+          status.chapters.forEach(ch => {
+            const opt = document.createElement('option');
+            opt.value = ch;
+            opt.textContent = ch;
+            chSelect.appendChild(opt);
+          });
+        }
+      } catch (err) {
+        console.error('Không thể kiểm tra trạng thái Vector Store', err);
+      }
+    }
+
+    // Preview Chunks trigger
+    document.getElementById('btn-preview').addEventListener('click', async () => {
+      const filePath = document.getElementById('doc-select').value;
+      if (!filePath) {
+        showToast('Vui lòng chọn tài liệu trước!', 'warning');
+        return;
+      }
+      
+      const btn = document.getElementById('btn-preview');
+      btn.disabled = true;
+      btn.innerHTML = '<div class="loading-spinner"></div> Loading...';
+
+      const payload = {
+        file_path: filePath,
+        strategy: activeStrategy,
+        chunk_size: parseInt(document.getElementById('param-size').value) || 500,
+        overlap: 0,
+        max_sentences_per_chunk: parseInt(document.getElementById('param-sentences').value) || 3
+      };
+
+      try {
+        const res = await fetch('/api/chunk', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+        
+        // Update stats
+        document.getElementById('stat-total-chunks').textContent = data.total_chunks;
+        document.getElementById('stat-avg-len').textContent = Math.round(data.avg_length) + ' ký tự';
+        document.getElementById('stat-doc-name').textContent = data.filename;
+
+        // Render chunks
+        const container = document.getElementById('preview-chunks-list');
+        container.innerHTML = '';
+        data.chunks.forEach((chunkText, i) => {
+          const card = document.createElement('div');
+          card.className = 'chunk-card';
+          card.innerHTML = `
+            <div class="chunk-header">
+              <span class="chunk-badge accent">Chunk #${i + 1}</span>
+              <span class="chunk-badge">${chunkText.length} ký tự</span>
+            </div>
+            <div class="chunk-body">${escapeHTML(chunkText)}</div>
+          `;
+          container.appendChild(card);
+        });
+
+        showToast('Đã tạo bản xem trước chunks thành công!');
+      } catch (err) {
+        showToast('Lỗi khi phân đoạn văn bản', 'danger');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Xem trước chunks';
+      }
+    });
+
+    // Index Vector Store trigger
+    document.getElementById('btn-index').addEventListener('click', async () => {
+      const filePath = document.getElementById('doc-select').value;
+      if (!filePath) {
+        showToast('Vui lòng chọn tài liệu trước!', 'warning');
+        return;
+      }
+      
+      const btn = document.getElementById('btn-index');
+      btn.disabled = true;
+      btn.innerHTML = '<div class="loading-spinner"></div> Đang lưu trữ...';
+
+      const payload = {
+        file_path: filePath,
+        strategy: activeStrategy,
+        chunk_size: parseInt(document.getElementById('param-size').value) || 500,
+        overlap: 0,
+        max_sentences_per_chunk: parseInt(document.getElementById('param-sentences').value) || 3
+      };
+
+      try {
+        const res = await fetch('/api/index', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+        showToast(data.message, 'success');
+        
+        // Refresh statuses
+        await checkSystemStatus();
+      } catch (err) {
+        showToast('Lỗi khi nạp dữ liệu vào Vector Store', 'danger');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Nạp & Index Vector Store';
+      }
+    });
+
+    // Search trigger
+    document.getElementById('btn-search').addEventListener('click', runRAGQuery);
+    document.getElementById('rag-query').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') runRAGQuery();
+    });
+
+    async function runRAGQuery() {
+      const query = document.getElementById('rag-query').value.trim();
+      if (!query) {
+        showToast('Vui lòng nhập câu hỏi!', 'warning');
+        return;
+      }
+      
+      saveQueryToHistory(query);
+
+      const btn = document.getElementById('btn-search');
+      btn.disabled = true;
+      btn.innerHTML = '<div class="loading-spinner"></div>';
+
+      const chapterFilter = document.getElementById('filter-chapter').value;
+      const payload = {
+        query: query,
+        top_k: 3,
+        chapter_filter: chapterFilter || null
+      };
+
+      try {
+        const res = await fetch('/api/query', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+
+        // Render Agent Answer
+        const answerText = document.getElementById('agent-answer-text');
+        const emptyState = document.getElementById('agent-empty-state');
+        
+        answerText.textContent = data.answer;
+        answerText.classList.add('active');
+        emptyState.style.display = 'none';
+
+        // Render Retrieved Chunks
+        const chunksContainer = document.getElementById('retrieved-chunks-list');
+        chunksContainer.innerHTML = '';
+        
+        if (data.results.length === 0) {
+          chunksContainer.innerHTML = `
+            <div class="empty-state">
+              <div class="empty-icon">❌</div>
+              <p>Không tìm thấy chunks nào phù hợp với câu hỏi.</p>
+            </div>
+          `;
+        } else {
+          data.results.forEach((res, i) => {
+            const scorePct = Math.max(0, Math.min(100, Math.round(res.score * 100)));
+            const matchedCard = document.createElement('div');
+            matchedCard.className = 'matched-chunk';
+            matchedCard.innerHTML = `
+              <div class="matched-chunk-header">
+                <span class="chunk-badge accent">Top #${i + 1} - ${res.metadata.chapter || 'Không rõ'}</span>
+                <span style="font-weight:600; color: #a855f7;">Similarity: ${(res.score).toFixed(3)}</span>
+              </div>
+              <div class="score-bar-bg">
+                <div class="score-bar-fill" style="width: ${scorePct}%"></div>
+              </div>
+              <div class="chunk-body" style="margin-top: 0.5rem; font-size: 0.85rem; max-height: 12rem; overflow-y: auto;">
+                ${escapeHTML(res.content)}
+              </div>
+            `;
+            chunksContainer.appendChild(matchedCard);
+          });
+        }
+
+        showToast('Truy vấn thành công!');
+      } catch (err) {
+        showToast('Lỗi khi truy vấn RAG', 'danger');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Tìm kiếm';
+      }
+    }
+
+    function escapeHTML(str) {
+      return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    // --- Query History Functionality ---
+    let queryHistory = JSON.parse(localStorage.getItem('rag_query_history') || '[]');
+
+    function saveQueryToHistory(query) {
+      if (!query) return;
+      queryHistory = queryHistory.filter(q => q !== query);
+      queryHistory.unshift(query);
+      if (queryHistory.length > 10) {
+        queryHistory.pop();
+      }
+      localStorage.setItem('rag_query_history', JSON.stringify(queryHistory));
+      renderHistoryDropdown();
+    }
+
+    function deleteQueryFromHistory(query, event) {
+      if (event) {
+        event.stopPropagation();
+      }
+      queryHistory = queryHistory.filter(q => q !== query);
+      localStorage.setItem('rag_query_history', JSON.stringify(queryHistory));
+      renderHistoryDropdown();
+      if (queryHistory.length === 0) {
+        document.getElementById('history-dropdown').style.display = 'none';
+      } else {
+        document.getElementById('rag-query').focus();
+      }
+    }
+
+    function clearAllHistory() {
+      queryHistory = [];
+      localStorage.setItem('rag_query_history', JSON.stringify(queryHistory));
+      renderHistoryDropdown();
+      document.getElementById('history-dropdown').style.display = 'none';
+    }
+
+    function renderHistoryDropdown() {
+      const listContainer = document.getElementById('history-items-list');
+      listContainer.innerHTML = '';
+      
+      if (queryHistory.length === 0) {
+        listContainer.innerHTML = `
+          <div style="padding: 1rem; text-align: center; color: var(--text-muted); font-size: 0.85rem;">
+            Chưa có lịch sử truy vấn
+          </div>
+        `;
+        return;
+      }
+
+      queryHistory.forEach(q => {
+        const item = document.createElement('div');
+        item.className = 'history-item';
+        item.addEventListener('click', () => {
+          document.getElementById('rag-query').value = q;
+          document.getElementById('history-dropdown').style.display = 'none';
+          runRAGQuery();
+        });
+
+        const textSpan = document.createElement('span');
+        textSpan.className = 'history-item-text';
+        textSpan.textContent = q;
+
+        const deleteSpan = document.createElement('span');
+        deleteSpan.className = 'history-item-delete';
+        deleteSpan.innerHTML = '&times;';
+        deleteSpan.title = 'Xóa';
+        deleteSpan.addEventListener('click', (e) => deleteQueryFromHistory(q, e));
+
+        item.appendChild(textSpan);
+        item.appendChild(deleteSpan);
+        listContainer.appendChild(item);
+      });
+    }
+
+    function showHistoryDropdown() {
+      const queryInput = document.getElementById('rag-query');
+      if (queryInput.disabled) return;
+      
+      renderHistoryDropdown();
+      if (queryHistory.length > 0) {
+        document.getElementById('history-dropdown').style.display = 'block';
+      }
+    }
+
+    // Init
+    window.onload = async () => {
+      await loadDocuments();
+      await checkSystemStatus();
+
+      // Wire up query history events
+      const queryInput = document.getElementById('rag-query');
+      queryInput.addEventListener('focus', showHistoryDropdown);
+      queryInput.addEventListener('click', showHistoryDropdown);
+
+      const clearBtn = document.getElementById('btn-clear-history');
+      if (clearBtn) {
+        clearBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          clearAllHistory();
+        });
+      }
+
+      document.addEventListener('click', (e) => {
+        const container = document.getElementById('query-input-container');
+        const dropdown = document.getElementById('history-dropdown');
+        if (container && dropdown && !container.contains(e.target)) {
+          dropdown.style.display = 'none';
+        }
+      });
+    };
+  </script>
+</body>
+</html>

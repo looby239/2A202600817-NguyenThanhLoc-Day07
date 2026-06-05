@@ -19,6 +19,7 @@ from src.models import Document
 from src.store import EmbeddingStore
 
 SAMPLE_FILES = [
+    "data/81-btc.md",
     "data/python_intro.txt",
     "data/vector_store_notes.md",
     "data/rag_system_design.md",
