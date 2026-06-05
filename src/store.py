@@ -28,14 +28,20 @@ class EmbeddingStore:
         self._next_index = 0
 
         try:
-            import chromadb
+            import os
+            use_chroma_env = os.getenv("USE_CHROMA", "false").lower() in ("true", "1")
+            if use_chroma_env:
+                import chromadb
 
-            # Ephemeral in-process client; the in-memory self._store stays the
-            # source of truth so every operation behaves identically with or
-            # without ChromaDB installed (Chroma is a bonus mirror here).
-            self._client = chromadb.Client()
-            self._collection = self._client.get_or_create_collection(name=collection_name)
-            self._use_chroma = True
+                # Ephemeral in-process client; the in-memory self._store stays the
+                # source of truth so every operation behaves identically with or
+                # without ChromaDB installed (Chroma is a bonus mirror here).
+                self._client = chromadb.Client()
+                self._collection = self._client.get_or_create_collection(name=collection_name)
+                self._use_chroma = True
+            else:
+                self._use_chroma = False
+                self._collection = None
         except Exception:
             self._use_chroma = False
             self._collection = None
